@@ -1,0 +1,88 @@
+
+====================================================
+ ACO CLOUD COMPUTING JOB SCHEDULING AND LOAD BALANCING
+                 EXPERIMENTAL RESULTS
+====================================================
+
+1. ACO ITERATION RESULTS
+------------------------
+
+Number of Ants       : 20
+Number of Iterations : 100
+
+Iteration 1: Best Fitness = 23.5978
+Iteration 2: Best Fitness = 22.0242
+Iteration 3: Best Fitness = 21.5158
+
+Iteration 4 to 100:
+Best Fitness = 21.5158
+
+The algorithm converges at iteration 3 with a
+best fitness value of 21.5158.
+
+----------------------------------------------------
+2. JOB SCHEDULING ALLOCATION
+----------------------------------------------------
+
+Job J1  --> VM4 | Execution Time = 4.80 seconds
+Job J2  --> VM3 | Execution Time = 12.50 seconds
+Job J3  --> VM2 | Execution Time = 12.00 seconds
+Job J4  --> VM1 | Execution Time = 30.00 seconds
+Job J5  --> VM4 | Execution Time = 6.00 seconds
+Job J6  --> VM2 | Execution Time = 14.67 seconds
+Job J7  --> VM4 | Execution Time = 4.00 seconds
+Job J8  --> VM3 | Execution Time = 14.00 seconds
+Job J9  --> VM4 | Execution Time = 6.80 seconds
+Job J10 --> VM4 | Execution Time = 8.00 seconds
+
+----------------------------------------------------
+3. VM WORKLOAD DISTRIBUTION
+----------------------------------------------------
+
+VM1: 30.00 seconds
+VM2: 26.67 seconds
+VM3: 26.50 seconds
+VM4: 29.60 seconds
+
+----------------------------------------------------
+4. PERFORMANCE METRICS
+----------------------------------------------------
+
+Makespan       : 30.0000 seconds
+Load Imbalance : 0.0573
+Best Fitness   : 21.5158
+
+----------------------------------------------------
+5. RESULT ANALYSIS
+----------------------------------------------------
+
+The proposed Ant Colony Optimization algorithm
+successfully schedules 10 jobs across 4 virtual
+machines.
+
+The best fitness value improves from 23.5978 in
+the first iteration to 21.5158 in the third
+iteration.
+
+The algorithm maintains the best fitness value
+for the remaining iterations, indicating
+convergence.
+
+The VM workload distribution is:
+
+VM1 = 30.00 seconds
+VM2 = 26.67 seconds
+VM3 = 26.50 seconds
+VM4 = 29.60 seconds
+
+The makespan is 30 seconds, and the load
+imbalance is 0.0573 (approximately 5.73%).
+
+These results indicate that the ACO algorithm
+performs job scheduling and achieves relatively
+balanced workload distribution among the
+available virtual machines.
+
+====================================================
+                 END OF RESULTS
+====================================================
