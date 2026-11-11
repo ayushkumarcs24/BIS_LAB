@@ -1,0 +1,171 @@
+import numpy as np
+from scipy.special import gamma
+from skimage import draw, filters, util, img_as_ubyte
+import matplotlib.pyplot as plt
+
+# ---------------------------------------------------------
+# 1. Create a Realistic Synthetic Brain MRI Scan
+# ---------------------------------------------------------
+def create_synthetic_brain_mri(size=256):
+    """Generates a 2D brain MRI phantom with 4 distinct anatomical regions."""
+    img = np.zeros((size, size), dtype=np.float64)
+    center = size // 2
+
+    # Region 1: Outer Skull (Bright Ring)
+    rr, cc = draw.ellipse(center, center, r_radius=105, c_radius=85)
+    img[rr, cc] = 0.85
+
+    # Region 2: Cerebrospinal Fluid / Dark Gap
+    rr, cc = draw.ellipse(center, center, r_radius=95, c_radius=75)
+    img[rr, cc] = 0.15
+
+    # Region 3: Brain Soft Tissue (Gray/White Matter)
+    rr, cc = draw.ellipse(center, center, r_radius=90, c_radius=70)
+    img[rr, cc] = 0.45
+
+    # Region 4: Simulated Anomaly / Tumor (High-Intensity Mass)
+    rr, cc = draw.ellipse(center - 20, center + 25, r_radius=18, c_radius=15)
+    img[rr, cc] = 0.92
+
+    # Smooth edges and add realistic MRI speckle/Gaussian noise
+    img = filters.gaussian(img, sigma=1.5)
+    img = util.random_noise(img, mode='gaussian', var=0.002)
+    return img_as_ubyte(np.clip(img, 0, 1))
+
+# ---------------------------------------------------------
+# 2. Objective Function: Multi-Level Otsu Variance
+# ---------------------------------------------------------
+def otsu_objective(thresholds, hist, total_pixels):
+    """Maximizes between-class variance to cleanly separate tissue intensities."""
+    t = np.sort(np.round(thresholds)).astype(int)
+    if len(np.unique(t)) < len(t) or np.any(t <= 0) or np.any(t >= 255):
+        return -1.0
+
+    bins = np.concatenate(([0], t, [256]))
+    prob = hist / total_pixels
+    levels = np.arange(256)
+    global_mean = np.sum(levels * prob)
+
+    variance = 0.0
+    for i in range(len(bins) - 1):
+        start, end = bins[i], bins[i+1]
+        w = np.sum(prob[start:end])
+        if w > 0:
+            mean = np.sum(levels[start:end] * prob[start:end]) / w
+            variance += w * ((mean - global_mean) ** 2)
+    return variance
+
+# ---------------------------------------------------------
+# 3. Cuckoo Search Optimization with Convergence Tracking
+# ---------------------------------------------------------
+def levy_flight(beta, dim):
+    num = gamma(1 + beta) * np.sin(np.pi * beta / 2)
+    den = gamma((1 + beta) / 2) * beta * (2 ** ((beta - 1) / 2))
+    sigma_u = (num / den) ** (1 / beta)
+    u = np.random.normal(0, sigma_u, size=dim)
+    v = np.random.normal(0, 1, size=dim)
+    return u / (np.abs(v) ** (1 / beta))
+
+def cuckoo_search_segmentation(image, num_thresholds=3, n_nests=25, max_iter=100, pa=0.25):
+    hist, _ = np.histogram(image.flatten(), bins=256, range=(0, 256))
+    total_pixels = image.size
+    lb, ub = 1, 254
+    beta = 1.5
+    alpha = 0.01 * (ub - lb)
+
+    nests = np.random.uniform(lb, ub, (n_nests, num_thresholds))
+    fitness = np.array([otsu_objective(nest, hist, total_pixels) for nest in nests])
+
+    best_idx = np.argmax(fitness)
+    best_nest = nests[best_idx].copy()
+    best_fitness = fitness[best_idx]
+    convergence_curve = []
+
+    for _ in range(max_iter):
+        # Lévy flight exploration
+        for i in range(n_nests):
+            step = levy_flight(beta, num_thresholds)
+            new_nest = np.clip(nests[i] + alpha * step * (nests[i] - best_nest), lb, ub)
+            new_fit = otsu_objective(new_nest, hist, total_pixels)
+
+            j = np.random.randint(0, n_nests)
+            if new_fit > fitness[j]:
+                nests[j] = new_nest
+                fitness[j] = new_fit
+
+        # Abandon worse nests
+        abandon_mask = np.random.rand(n_nests, num_thresholds) < pa
+        stepsize = np.random.rand() * (nests[np.random.permutation(n_nests)] - nests[np.random.permutation(n_nests)])
+        new_nests = np.clip(nests + stepsize * abandon_mask, lb, ub)
+
+        for i in range(n_nests):
+            new_fit = otsu_objective(new_nests[i], hist, total_pixels)
+            if new_fit > fitness[i]:
+                nests[i] = new_nests[i]
+                fitness[i] = new_fit
+
+        current_best_idx = np.argmax(fitness)
+        if fitness[current_best_idx] > best_fitness:
+            best_fitness = fitness[current_best_idx]
+            best_nest = nests[current_best_idx].copy()
+
+        convergence_curve.append(best_fitness)
+
+    return np.sort(np.round(best_nest)).astype(int), best_fitness, convergence_curve
+
+# ---------------------------------------------------------
+# 4. Run & Visualize Full Segmentation Pipeline
+# ---------------------------------------------------------
+if __name__ == "__main__":
+    # Generate synthetic brain scan
+    mri_scan = create_synthetic_brain_mri()
+
+    # Find 3 thresholds to separate: Background, Brain Tissue, Skull, and Tumor
+    thresholds, best_score, curve = cuckoo_search_segmentation(
+        image=mri_scan, num_thresholds=3, n_nests=25, max_iter=80
+    )
+    print(f"Optimal Thresholds: {thresholds}")
+    print(f"Final Otsu Variance: {best_score:.2f}")
+
+    # Create discrete class labels (0, 1, 2, 3)
+    segmented_regions = np.digitize(mri_scan, bins=thresholds)
+
+    # Isolate the highest intensity class (Tumor + dense skull)
+    # Remove outer border to isolate the internal tumor region cleanly
+    high_intensity_mask = (segmented_regions == 3)
+    tumor_only_mask = np.zeros_like(high_intensity_mask)
+    tumor_only_mask[60:196, 60:196] = high_intensity_mask[60:196, 60:196]
+
+    # Plot 4-Panel Educational Breakdown
+    fig, axes = plt.subplots(2, 2, figsize=(11, 9))
+
+    # Panel 1: Original MRI
+    axes[0, 0].imshow(mri_scan, cmap='gray')
+    axes[0, 0].set_title("1. Input Brain MRI Scan")
+    axes[0, 0].axis('off')
+
+    # Panel 2: Multi-Class Segmented Map
+    cmap = plt.get_cmap('jet', 4)
+    im = axes[0, 1].imshow(segmented_regions, cmap=cmap)
+    axes[0, 1].set_title(f"2. Multi-Region Segmentation\n(Thresholds: {thresholds})")
+    axes[0, 1].axis('off')
+    cbar = plt.colorbar(im, ax=axes[0, 1], ticks=[0, 1, 2, 3], fraction=0.046)
+    cbar.ax.set_yticklabels(['Background', 'Brain Tissue', 'Skull', 'Tumor/Dense'])
+
+    # Panel 3: Isolated Tumor Overlay
+    axes[1, 0].imshow(mri_scan, cmap='gray')
+    axes[1, 0].contour(tumor_only_mask, colors='red', linewidths=2)
+    axes[1, 0].set_title("3. Detected Anomaly Boundary (Red Contour)")
+    axes[1, 0].axis('off')
+
+    # Panel 4: Pixel Histogram with Optimal Threshold Cutoffs
+    axes[1, 1].hist(mri_scan.ravel(), bins=256, range=(0, 256), color='steelblue', alpha=0.7)
+    for t in thresholds:
+        axes[1, 1].axvline(t, color='red', linestyle='--', linewidth=1.8, label=f'Threshold = {t}')
+    axes[1, 1].set_title("4. Intensity Histogram & Cuckoo Thresholds")
+    axes[1, 1].set_xlabel("Pixel Intensity (0 - 255)")
+    axes[1, 1].set_ylabel("Pixel Count")
+    axes[1, 1].legend()
+
+    plt.tight_layout()
+    plt.show()
