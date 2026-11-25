@@ -1,0 +1,16 @@
+Starting GWO Autonomous Path Planner...
+
+Iteration   1/200 | Best Path Cost: 2337.0813
+Iteration  50/200 | Best Path Cost: 16.6558
+Iteration 100/200 | Best Path Cost: 16.6558
+Iteration 150/200 | Best Path Cost: 16.6103
+Iteration 200/200 | Best Path Cost: 16.5318
+
+--- Final Collision-Free Trajectory ---
+  Start      -> X:  0.000, Y:  0.000
+  Waypoint 1 -> X:  0.450, Y:  1.744
+  Waypoint 2 -> X:  1.530, Y:  6.257
+  Waypoint 3 -> X:  2.635, Y:  8.604
+  Goal       -> X: 10.000, Y: 10.000
+
+Optimal Path Length: 16.5318 units
